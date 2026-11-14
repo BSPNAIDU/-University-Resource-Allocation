@@ -1,0 +1,353 @@
+/* =====================================================
+   UNIVERSITY RESOURCE ALLOCATION SYSTEM
+   Professional University ERP Theme
+   ===================================================== */
+
+:root {
+    --navy: #142b4d;
+    --navy-dark: #0d1d35;
+    --blue: #2864dc;
+    --blue-hover: #1d4fb5;
+    --blue-light: #edf4ff;
+    --background: #f4f6fa;
+    --surface: #ffffff;
+    --text: #26364d;
+    --muted: #718096;
+    --border: #e2e8f0;
+    --green: #16865c;
+    --red: #c43d4b;
+    --radius: 12px;
+    --shadow: 0 3px 12px rgba(15, 35, 65, 0.06);
+}
+
+/* Application background */
+
+.stApp {
+    background: var(--background) !important;
+    color: var(--text) !important;
+}
+
+[data-testid="stAppViewContainer"] {
+    background: var(--background) !important;
+}
+
+[data-testid="stMain"] {
+    background: transparent !important;
+}
+
+[data-testid="stMainBlockContainer"] {
+    max-width: 1500px;
+    padding: 2rem 2.5rem 3rem;
+}
+
+/* Top header */
+
+[data-testid="stHeader"] {
+    background: rgba(255,255,255,0.96) !important;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Sidebar */
+
+[data-testid="stSidebar"] {
+    background: var(--navy) !important;
+    border-right: 1px solid #243e63;
+}
+
+[data-testid="stSidebar"] > div {
+    background: var(--navy) !important;
+}
+
+[data-testid="stSidebar"] * {
+    color: #edf3fc !important;
+}
+
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+    color: #c6d4e8 !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stPageLink"] {
+    border-radius: 9px;
+    margin: 4px 0;
+    padding: 5px 8px;
+    transition: background 0.2s ease;
+}
+
+[data-testid="stSidebar"] [data-testid="stPageLink"]:hover {
+    background: #23436d !important;
+}
+
+[data-testid="stSidebar"] [aria-current="page"] {
+    background: var(--blue) !important;
+    border-radius: 9px;
+}
+
+/* Typography */
+
+h1, h2, h3, h4 {
+    color: var(--navy) !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.3px;
+}
+
+h1 {
+    font-size: 2.15rem !important;
+}
+
+h2 {
+    font-size: 1.55rem !important;
+}
+
+h3 {
+    font-size: 1.2rem !important;
+}
+
+p, label, li {
+    color: var(--text);
+}
+
+[data-testid="stCaptionContainer"] {
+    color: var(--muted) !important;
+}
+
+/* University portal banner */
+
+.portal-banner {
+    position: relative;
+    overflow: hidden;
+    padding: 30px 34px;
+    border-radius: 15px;
+    margin-bottom: 25px;
+    background: linear-gradient(115deg, #142b4d, #1c477e 70%, #2864dc);
+    color: white;
+    box-shadow: 0 8px 22px rgba(20,43,77,0.13);
+}
+
+.portal-banner::after {
+    content: "";
+    position: absolute;
+    width: 230px;
+    height: 230px;
+    right: -65px;
+    top: -115px;
+    border: 30px solid rgba(255,255,255,0.08);
+    border-radius: 50%;
+}
+
+.portal-banner h1,
+.portal-banner h2,
+.portal-banner p {
+    color: white !important;
+    position: relative;
+    z-index: 1;
+}
+
+.portal-banner h1 {
+    font-size: 2rem !important;
+    margin-bottom: 8px;
+}
+
+.portal-banner p {
+    color: #dce8f8 !important;
+    margin-bottom: 5px;
+}
+
+/* Dashboard metrics */
+
+[data-testid="stMetric"] {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    padding: 18px 20px !important;
+    min-height: 112px;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+[data-testid="stMetric"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 18px rgba(15,35,65,0.10);
+}
+
+[data-testid="stMetricLabel"] {
+    color: var(--muted) !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+}
+
+[data-testid="stMetricValue"] {
+    color: var(--navy) !important;
+    font-size: 1.9rem !important;
+    font-weight: 750 !important;
+}
+
+/* Buttons */
+
+.stButton > button,
+.stFormSubmitButton > button {
+    background: var(--blue) !important;
+    color: #ffffff !important;
+    border: 1px solid var(--blue) !important;
+    border-radius: 8px !important;
+    min-height: 40px;
+    padding: 0.55rem 1rem !important;
+    font-weight: 600 !important;
+    box-shadow: none !important;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.stButton > button:hover,
+.stFormSubmitButton > button:hover {
+    background: var(--blue-hover) !important;
+    border-color: var(--blue-hover) !important;
+}
+
+/* Inputs */
+
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stDateInput"] input,
+[data-testid="stTextArea"] textarea {
+    background: #ffffff !important;
+    color: var(--text) !important;
+    border: 1px solid #cfd8e5 !important;
+    border-radius: 8px !important;
+    min-height: 40px;
+}
+
+[data-testid="stTextInput"] input:focus,
+[data-testid="stNumberInput"] input:focus,
+[data-testid="stDateInput"] input:focus,
+[data-testid="stTextArea"] textarea:focus {
+    border-color: var(--blue) !important;
+    box-shadow: 0 0 0 2px rgba(40,100,220,0.12) !important;
+}
+
+[data-testid="stSelectbox"] [data-baseweb="select"],
+[data-testid="stMultiSelect"] [data-baseweb="select"] {
+    border-radius: 8px !important;
+}
+
+/* Forms and containers */
+
+[data-testid="stForm"],
+[data-testid="stExpander"] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+[data-testid="stForm"] {
+    padding: 18px;
+}
+
+/* Tables */
+
+[data-testid="stDataFrame"],
+[data-testid="stTable"] {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    overflow: hidden;
+}
+
+/* Charts */
+
+[data-testid="stPlotlyChart"] {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    padding: 12px !important;
+    box-shadow: var(--shadow);
+}
+
+/* File upload */
+
+[data-testid="stFileUploader"] {
+    background: #ffffff !important;
+    border: 1px dashed #9bb5d8 !important;
+    border-radius: 11px !important;
+    padding: 14px !important;
+}
+
+[data-testid="stFileUploader"]:hover {
+    border-color: var(--blue) !important;
+    background: #f7faff !important;
+}
+
+/* Alerts */
+
+[data-testid="stAlert"] {
+    border-radius: 9px !important;
+    border: 1px solid var(--border);
+}
+
+/* Tabs */
+
+[data-testid="stTabs"] [role="tab"] {
+    color: var(--muted) !important;
+    font-weight: 600 !important;
+}
+
+[data-testid="stTabs"] [aria-selected="true"] {
+    color: var(--blue) !important;
+}
+
+/* Progress bar */
+
+[data-testid="stProgressBar"] > div > div {
+    background: var(--blue) !important;
+}
+
+/* Dividers */
+
+hr {
+    border-color: var(--border) !important;
+    margin: 1.5rem 0 !important;
+}
+
+/* Hide Streamlit branding */
+
+#MainMenu,
+footer {
+    visibility: hidden;
+}
+
+/* Responsive layout */
+
+@media (max-width: 768px) {
+    [data-testid="stMainBlockContainer"] {
+        padding: 1rem 1rem 2rem;
+    }
+
+    .portal-banner {
+        padding: 22px;
+    }
+
+    .portal-banner h1 {
+        font-size: 1.5rem !important;
+    }
+
+    h1 {
+        font-size: 1.7rem !important;
+    }
+}
+
+/* Accessibility */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

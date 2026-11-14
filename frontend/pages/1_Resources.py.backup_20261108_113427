@@ -1,0 +1,437 @@
+import streamlit as st
+import pandas as pd
+
+from api_client import (
+    api_get,
+    api_post,
+    api_put,
+    api_delete,
+    get_error_message
+)
+from styles import load_css
+
+st.set_page_config(
+    page_title="University Block Management",
+    page_icon="??",
+    layout="wide"
+)
+
+load_css()
+
+if not st.session_state.get("authenticated", False):
+    st.warning("Please log in first.")
+    st.stop()
+
+university = st.session_state.get("university", {})
+
+st.title("University Block and Classroom Management")
+st.caption(f"University: {university.get('university_name', '')}")
+
+st.write(
+    "Create blocks, configure classrooms, assign seating capacities "
+    "and manage classroom availability."
+)
+
+
+# Reset all unsaved form configuration
+def reset_block_form():
+    keys_to_delete = [
+        key for key in list(st.session_state.keys())
+        if key.startswith("block_") or key == "resource_blocks"
+    ]
+
+    for key in keys_to_delete:
+        del st.session_state[key]
+
+    st.session_state.resource_blocks = [
+        {"name": "A", "room_count": 3}
+    ]
+
+    st.session_state.delete_rooms_confirmation = False
+
+
+if "resource_blocks" not in st.session_state:
+    st.session_state.resource_blocks = [
+        {"name": "A", "room_count": 3}
+    ]
+
+if "delete_rooms_confirmation" not in st.session_state:
+    st.session_state.delete_rooms_confirmation = False
+
+
+# Load university rooms
+try:
+    rooms = api_get("/resources/")
+    if not isinstance(rooms, list):
+        rooms = []
+except Exception as error:
+    st.error("Unable to load university classrooms.")
+    st.code(get_error_message(error))
+    st.stop()
+
+
+# Dashboard summary
+total_rooms = len(rooms)
+
+total_capacity = sum(
+    int(room.get("capacity", 0))
+    for room in rooms
+)
+
+available_rooms = sum(
+    1 for room in rooms
+    if room.get("is_available") is True
+)
+
+total_blocks = len({
+    str(room.get("building", "")).strip()
+    for room in rooms
+})
+
+st.subheader("University Infrastructure")
+
+c1, c2, c3, c4 = st.columns(4)
+
+c1.metric("Total Blocks", total_blocks)
+c2.metric("Total Classrooms", total_rooms)
+c3.metric("Total Seating Capacity", total_capacity)
+c4.metric("Available Classrooms", available_rooms)
+
+st.divider()
+
+
+# Reset and delete controls
+st.subheader("Configuration Controls")
+
+reset_col, delete_col = st.columns(2)
+
+with reset_col:
+    if st.button(
+        "Reset Form",
+        use_container_width=True
+    ):
+        reset_block_form()
+        st.rerun()
+
+with delete_col:
+    if st.button(
+        "Delete All Saved Classrooms",
+        type="secondary",
+        use_container_width=True
+    ):
+        st.session_state.delete_rooms_confirmation = True
+        st.rerun()
+
+
+if st.session_state.delete_rooms_confirmation:
+
+    st.warning(
+        "This will permanently delete all saved classrooms and "
+        "their seating allocations for this university. "
+        "Students, examinations, registrations and other universities "
+        "will not be deleted."
+    )
+
+    confirm_col, cancel_col = st.columns(2)
+
+    with confirm_col:
+        if st.button(
+            "Confirm Delete All Classrooms",
+            type="primary",
+            use_container_width=True
+        ):
+            try:
+                result = api_delete("/resources/all")
+
+                st.session_state.delete_rooms_confirmation = False
+                reset_block_form()
+
+                st.success(
+                    f"Deleted {result.get('deleted_classrooms', 0)} "
+                    "saved classrooms successfully."
+                )
+
+                st.rerun()
+
+            except Exception as error:
+                st.error("Unable to delete saved classrooms.")
+                st.code(get_error_message(error))
+
+    with cancel_col:
+        if st.button(
+            "Cancel",
+            use_container_width=True
+        ):
+            st.session_state.delete_rooms_confirmation = False
+            st.rerun()
+
+
+st.divider()
+
+st.subheader("Configure Blocks and Classrooms")
+
+st.caption(
+    "Add blocks, choose the number of classrooms, and configure "
+    "each classroom name and seating capacity."
+)
+
+
+# Add block
+if st.button("Add Another Block", type="primary"):
+
+    current_count = len(st.session_state.resource_blocks)
+
+    if current_count < 26:
+        next_name = chr(65 + current_count)
+    else:
+        next_name = f"Block-{current_count + 1}"
+
+    st.session_state.resource_blocks.append({
+        "name": next_name,
+        "room_count": 3
+    })
+
+    st.rerun()
+
+
+room_details = []
+
+
+# Display blocks
+for block_index, block in enumerate(st.session_state.resource_blocks):
+
+    block_key = f"block_{block_index}"
+
+    st.divider()
+
+    col1, col2, col3 = st.columns([2, 1, 1])
+
+    with col1:
+        st.subheader(f"Block {block_index + 1}")
+
+        block_name = st.text_input(
+            "Block Name",
+            value=block["name"],
+            key=f"{block_key}_name",
+            placeholder="Example: A"
+        )
+
+    with col2:
+        room_count = st.number_input(
+            "Number of Classrooms",
+            min_value=1,
+            max_value=200,
+            value=int(block["room_count"]),
+            step=1,
+            key=f"{block_key}_count"
+        )
+
+    with col3:
+        if len(st.session_state.resource_blocks) > 1:
+            st.write("")
+
+            if st.button(
+                "Remove Block",
+                key=f"{block_key}_remove"
+            ):
+                for key in list(st.session_state.keys()):
+                    if key.startswith(block_key + "_"):
+                        del st.session_state[key]
+
+                st.session_state.resource_blocks.pop(block_index)
+                st.rerun()
+
+    st.session_state.resource_blocks[block_index]["name"] = block_name
+    st.session_state.resource_blocks[block_index]["room_count"] = int(room_count)
+
+    st.markdown(
+        f"**Classroom details in {block_name or 'Unnamed Block'}**"
+    )
+
+    for room_index in range(int(room_count)):
+
+        room_col1, room_col2, room_col3 = st.columns([1.5, 1, 1.5])
+
+        room_name_key = f"{block_key}_room_{room_index}"
+        capacity_key = f"{block_key}_capacity_{room_index}"
+        type_key = f"{block_key}_type_{room_index}"
+
+        default_room = f"{block_name}-{room_index + 1}"
+
+        with room_col1:
+            room_number = st.text_input(
+                "Classroom Name",
+                value=default_room,
+                key=room_name_key
+            )
+
+        with room_col2:
+            if capacity_key not in st.session_state:
+                st.session_state[capacity_key] = 60
+
+            capacity = st.number_input(
+                "Seating Capacity",
+                min_value=1,
+                max_value=1000,
+                step=1,
+                key=capacity_key
+            )
+
+        with room_col3:
+            room_type = st.selectbox(
+                "Classroom Type",
+                [
+                    "Classroom",
+                    "Examination Hall",
+                    "Laboratory",
+                    "Seminar Hall"
+                ],
+                key=type_key
+            )
+
+        room_details.append({
+            "room_number": room_number.strip(),
+            "building": block_name.strip(),
+            "capacity": int(capacity),
+            "is_available": True,
+            "room_type": room_type
+        })
+
+
+# Save configuration
+st.divider()
+
+if st.button(
+    "Save All Blocks and Classrooms",
+    type="primary",
+    use_container_width=True
+):
+
+    if any(not room["building"] for room in room_details):
+        st.error("Every block must have a name.")
+
+    elif any(not room["room_number"] for room in room_details):
+        st.error("Every classroom must have a name.")
+
+    else:
+        room_keys = [
+            (
+                room["building"].casefold(),
+                room["room_number"].casefold()
+            )
+            for room in room_details
+        ]
+
+        if len(room_keys) != len(set(room_keys)):
+            st.error("Duplicate classroom names found within a block.")
+
+        else:
+            existing_keys = {
+                (
+                    str(room.get("building", "")).strip().casefold(),
+                    str(room.get("room_number", "")).strip().casefold()
+                )
+                for room in rooms
+            }
+
+            duplicates = [
+                f'{room["building"]}/{room["room_number"]}'
+                for room in room_details
+                if (
+                    room["building"].casefold(),
+                    room["room_number"].casefold()
+                ) in existing_keys
+            ]
+
+            if duplicates:
+                st.error(
+                    "These classrooms already exist: "
+                    + ", ".join(duplicates)
+                )
+
+            else:
+                try:
+                    result = api_post(
+                        "/resources/bulk",
+                        {"rooms": room_details}
+                    )
+
+                    saved_count = (
+                        len(result)
+                        if isinstance(result, list)
+                        else len(room_details)
+                    )
+
+                    st.success(
+                        f"Successfully saved {saved_count} classrooms!"
+                    )
+
+                    st.balloons()
+                    st.rerun()
+
+                except Exception as error:
+                    st.error("Unable to save classroom configuration.")
+                    st.code(get_error_message(error))
+
+
+# Saved classrooms
+st.divider()
+
+st.subheader("Registered University Classrooms")
+
+if rooms:
+
+    room_df = pd.DataFrame(rooms)
+
+    display_columns = [
+        column for column in [
+            "id",
+            "building",
+            "room_number",
+            "capacity",
+            "room_type",
+            "is_available"
+        ]
+        if column in room_df.columns
+    ]
+
+    st.dataframe(
+        room_df[display_columns],
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.subheader("Manage Classroom Availability")
+
+    room_options = {
+        f'{room["building"]} / {room["room_number"]}': room
+        for room in rooms
+    }
+
+    selected = st.selectbox(
+        "Select Classroom",
+        list(room_options.keys())
+    )
+
+    selected_room = room_options[selected]
+
+    new_status = st.toggle(
+        "Classroom Available",
+        value=selected_room.get("is_available", True)
+    )
+
+    if st.button("Update Classroom Availability"):
+        try:
+            api_put(
+                f'/resources/{selected_room["id"]}',
+                {"is_available": new_status}
+            )
+
+            st.success("Classroom availability updated.")
+            st.rerun()
+
+        except Exception as error:
+            st.error(get_error_message(error))
+
+else:
+    st.info("No saved classrooms found for this university.")

@@ -1,0 +1,2 @@
+register_number,student_name,department,year,subject_code,subject_name,exam_date,start_time,end_time
+22CS001,Ravi Kumar,CSE,2,TESTSE2,Software Testing,2026-11-15,11:00,12:00

@@ -1,0 +1,27 @@
+
+# Backend API
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Frontend dashboard
+streamlit
+requests
+
+# PostgreSQL database
+sqlalchemy
+psycopg[binary]
+alembic
+
+# Data processing and visualization
+pandas
+numpy
+plotly
+
+# Environment configuration
+python-dotenv
+
+# Testing
+pytest
+httpx

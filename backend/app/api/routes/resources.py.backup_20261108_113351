@@ -1,0 +1,477 @@
+﻿
+from collections import defaultdict
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session, joinedload
+
+from backend.app.database import get_db
+from backend.app.models import Resource, Allocation, Examination
+from backend.app.models.university import University
+from backend.app.core.dependencies import get_current_university
+from backend.app.optimizer.conflict_detection import (
+    filter_rooms_without_schedule_conflicts,
+)
+
+router = APIRouter(prefix="/api/v1/resources", tags=["Resources"])
+
+
+class ResourceCreate(BaseModel):
+    room_number: str = Field(min_length=1, max_length=30)
+    building: str = Field(min_length=1, max_length=100)
+    capacity: int = Field(ge=1)
+    is_available: bool = True
+    room_type: str = Field(default="Examination Hall", max_length=50)
+
+
+class ResourceBulkCreate(BaseModel):
+    rooms: list[ResourceCreate] = Field(min_length=1, max_length=200)
+
+
+class ResourceUpdate(BaseModel):
+    is_available: bool
+
+
+class ResourceResponse(BaseModel):
+    id: int
+    room_number: str
+    building: str
+    capacity: int
+    is_available: bool
+    room_type: str
+
+    model_config = {"from_attributes": True}
+
+
+def get_university_room(
+    db: Session,
+    resource_id: int,
+    university_id: int,
+):
+    resource = db.query(Resource).filter(
+        Resource.id == resource_id,
+        Resource.university_id == university_id,
+    ).first()
+
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Room not found.")
+
+    return resource
+
+
+@router.post(
+    "/bulk",
+    response_model=list[ResourceResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+def create_resources_bulk(
+    bulk_data: ResourceBulkCreate,
+    db: Session = Depends(get_db),
+    university: University = Depends(get_current_university),
+):
+    room_keys = [
+        (room.building.strip().lower(), room.room_number.strip().lower())
+        for room in bulk_data.rooms
+    ]
+
+    if len(room_keys) != len(set(room_keys)):
+        raise HTTPException(
+            status_code=409,
+            detail="Duplicate room numbers found within the same building.",
+        )
+
+    existing_rooms = db.query(Resource).filter(
+        Resource.university_id == university.id
+    ).all()
+
+    existing_keys = {
+        (room.building.strip().lower(), room.room_number.strip().lower())
+        for room in existing_rooms
+    }
+
+    duplicates = [
+        f"{building}/{room_number}"
+        for building, room_number in room_keys
+        if (building, room_number) in existing_keys
+    ]
+
+    if duplicates:
+        raise HTTPException(
+            status_code=409,
+            detail=f"These rooms already exist: {', '.join(duplicates)}",
+        )
+
+    try:
+        new_rooms = [
+            Resource(
+                university_id=university.id,
+                room_number=room.room_number.strip(),
+                building=room.building.strip(),
+                capacity=room.capacity,
+                is_available=room.is_available,
+                room_type=room.room_type,
+            )
+            for room in bulk_data.rooms
+        ]
+
+        db.add_all(new_rooms)
+        db.flush()
+
+        response_data = [
+            ResourceResponse.model_validate(room)
+            for room in new_rooms
+        ]
+
+        db.commit()
+        return response_data
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Room setup failed. Database transaction rolled back.",
+        )
+
+
+@router.post(
+    "/",
+    response_model=ResourceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_resource(
+    resource_data: ResourceCreate,
+    db: Session = Depends(get_db),
+    university: University = Depends(get_current_university),
+):
+    existing = db.query(Resource).filter(
+        Resource.university_id == university.id,
+        Resource.building.ilike(resource_data.building.strip()),
+        Resource.room_number.ilike(resource_data.room_number.strip()),
+    ).first()
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="This room number already exists in this building.",
+        )
+
+    try:
+        resource = Resource(
+            university_id=university.id,
+            **resource_data.model_dump(),
+        )
+
+        resource.room_number = resource.room_number.strip()
+        resource.building = resource.building.strip()
+
+        db.add(resource)
+        db.commit()
+        db.refresh(resource)
+        return resource
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Room creation failed.",
+        )
+
+
+@router.get("/", response_model=list[ResourceResponse])
+def list_resources(
+    db: Session = Depends(get_db),
+    university: University = Depends(get_current_university),
+):
+    return (
+        db.query(Resource)
+        .filter(Resource.university_id == university.id)
+        .order_by(Resource.id)
+        .all()
+    )
+
+
+@router.get("/available", response_model=list[ResourceResponse])
+def list_available_resources(
+    db: Session = Depends(get_db),
+    university: University = Depends(get_current_university),
+):
+    return (
+        db.query(Resource)
+        .filter(
+            Resource.university_id == university.id,
+            Resource.is_available.is_(True),
+        )
+        .order_by(Resource.room_number)
+        .all()
+    )
+
+
+@router.delete("/all")
+def delete_all_university_resources(
+    db: Session = Depends(get_db),
+    university: University = Depends(get_current_university),
+):
+    try:
+        room_count = db.query(Resource).filter(
+            Resource.university_id == university.id
+        ).count()
+
+        # Remove allocations before deleting their classrooms.
+        db.query(Allocation).filter(
+            Allocation.university_id == university.id
+        ).delete(synchronize_session=False)
+
+        db.query(Resource).filter(
+            Resource.university_id == university.id
+        ).delete(synchronize_session=False)
+
+        db.commit()
+
+        return {
+            "message": "All university classrooms deleted successfully.",
+            "deleted_classrooms": room_count,
+            "university_id": university.id
+        }
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Classroom deletion failed. No changes were saved."
+        )
+
+
+@router.get("/{resource_id}", response_model=ResourceResponse)
+def get_resource(
+    resource_id: int,
+    db: Session = Depends(get_db),
+    university: University = Depends(get_current_university),
+):
+    return get_university_room(db, resource_id, university.id)
+
+
+@router.put("/{resource_id}")
+def update_resource(
+    resource_id: int,
+    resource_data: ResourceUpdate,
+    db: Session = Depends(get_db),
+    university: University = Depends(get_current_university),
+):
+    resource = db.query(Resource).filter(
+        Resource.id == resource_id,
+        Resource.university_id == university.id,
+    ).with_for_update().first()
+
+    if resource is None:
+        raise HTTPException(status_code=404, detail="Room not found.")
+
+    if resource_data.is_available:
+        try:
+            resource.is_available = True
+            db.commit()
+            db.refresh(resource)
+
+            return {
+                "message": "Room marked as available.",
+                "room": ResourceResponse.model_validate(resource),
+                "reallocation": None,
+            }
+        except Exception:
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail="Room status update failed.",
+            )
+
+    if resource.is_available is False:
+        return {
+            "message": "Room is already unavailable.",
+            "room": ResourceResponse.model_validate(resource),
+            "reallocation": None,
+        }
+
+    try:
+        affected_allocations = (
+            db.query(Allocation)
+            .options(joinedload(Allocation.student))
+            .filter(
+                Allocation.university_id == university.id,
+                Allocation.resource_id == resource.id,
+                Allocation.allocation_status.in_(
+                    ["allocated", "reallocated"]
+                ),
+            )
+            .all()
+        )
+
+        resource.is_available = False
+        db.flush()
+
+        if not affected_allocations:
+            db.commit()
+            db.refresh(resource)
+
+            return {
+                "message": "Room marked unavailable. No students needed reallocation.",
+                "room": ResourceResponse.model_validate(resource),
+                "reallocation": {
+                    "affected_students": 0,
+                    "reallocated_students": 0,
+                    "examinations_affected": 0,
+                    "details": [],
+                },
+            }
+
+        affected_by_exam = defaultdict(list)
+
+        for allocation in affected_allocations:
+            affected_by_exam[allocation.examination_id].append(allocation)
+
+        reallocation_details = []
+        total_reallocated = 0
+
+        for examination_id, old_allocations in affected_by_exam.items():
+            examination = db.query(Examination).filter(
+                Examination.id == examination_id,
+                Examination.university_id == university.id,
+            ).first()
+
+            if examination is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Examination {examination_id} was not found.",
+                )
+
+            available_rooms = (
+                db.query(Resource)
+                .filter(
+                    Resource.university_id == university.id,
+                    Resource.is_available.is_(True),
+                    Resource.capacity > 0,
+                )
+                .order_by(Resource.room_number)
+                .all()
+            )
+
+            suitable_rooms = filter_rooms_without_schedule_conflicts(
+                db,
+                examination,
+                available_rooms,
+            )
+
+            existing_in_suitable_rooms = (
+                db.query(Allocation)
+                .filter(
+                    Allocation.university_id == university.id,
+                    Allocation.examination_id == examination_id,
+                    Allocation.resource_id.in_(
+                        [room.id for room in suitable_rooms]
+                    ),
+                    Allocation.allocation_status.in_(
+                        ["allocated", "reallocated"]
+                    ),
+                )
+                .all()
+            ) if suitable_rooms else []
+
+            occupied_seats = defaultdict(set)
+
+            for allocation in existing_in_suitable_rooms:
+                occupied_seats[allocation.resource_id].add(
+                    allocation.seat_number
+                )
+
+            proposed_allocations = []
+
+            for room in suitable_rooms:
+                for seat_index in range(1, room.capacity + 1):
+                    seat_number = f"S{seat_index:02d}"
+
+                    if seat_number in occupied_seats[room.id]:
+                        continue
+
+                    if len(proposed_allocations) >= len(old_allocations):
+                        break
+
+                    proposed_allocations.append({
+                        "resource_id": room.id,
+                        "seat_number": seat_number,
+                    })
+
+                if len(proposed_allocations) >= len(old_allocations):
+                    break
+
+            if len(proposed_allocations) < len(old_allocations):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Reallocation failed for {examination.exam_code}. "
+                        f"Required seats: {len(old_allocations)}, "
+                        f"available vacant seats: {len(proposed_allocations)}. "
+                        "Previous allocations and room status have been preserved."
+                    ),
+                )
+
+            for allocation in old_allocations:
+                db.delete(allocation)
+
+            db.flush()
+
+            new_allocations = []
+
+            for old_allocation, new_seat in zip(
+                old_allocations,
+                proposed_allocations,
+            ):
+                new_allocations.append(
+                    Allocation(
+                        university_id=university.id,
+                        student_id=old_allocation.student_id,
+                        examination_id=examination_id,
+                        resource_id=new_seat["resource_id"],
+                        seat_number=new_seat["seat_number"],
+                        allocation_status="reallocated",
+                    )
+                )
+
+            db.add_all(new_allocations)
+            db.flush()
+
+            total_reallocated += len(new_allocations)
+
+            reallocation_details.append({
+                "examination_id": examination.id,
+                "exam_code": examination.exam_code,
+                "affected_students": len(old_allocations),
+                "reallocated_students": len(new_allocations),
+            })
+
+        db.commit()
+        db.refresh(resource)
+
+        return {
+            "message": (
+                "Room marked unavailable and automatic reallocation completed."
+            ),
+            "room": ResourceResponse.model_validate(resource),
+            "reallocation": {
+                "affected_students": len(affected_allocations),
+                "reallocated_students": total_reallocated,
+                "examinations_affected": len(reallocation_details),
+                "details": reallocation_details,
+            },
+        }
+
+    except HTTPException:
+        db.rollback()
+        raise
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Automatic reallocation failed. "
+                "All changes have been rolled back."
+            ),
+        )

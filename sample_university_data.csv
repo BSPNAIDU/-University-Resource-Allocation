@@ -1,0 +1,11 @@
+﻿register_number,student_name,department,year,subject_code,subject_name,exam_date,start_time,end_time
+22CS001,Ravi Kumar,CSE,2,CS501,Database Management Systems,2026-11-15,09:30,12:30
+22CS002,Priya Sharma,CSE,2,CS501,Database Management Systems,2026-11-15,09:30,12:30
+22CS003,Arun Kumar,CSE,2,CS501,Database Management Systems,2026-11-15,09:30,12:30
+22CS004,Divya Reddy,CSE,2,CS501,Database Management Systems,2026-11-15,09:30,12:30
+22CS005,Kiran Kumar,CSE,2,CS501,Database Management Systems,2026-11-15,09:30,12:30
+22CS006,Meena Devi,CSE,2,CS502,Operating Systems,2026-11-17,09:30,12:30
+22CS007,Arjun Rao,CSE,2,CS502,Operating Systems,2026-11-17,09:30,12:30
+22EC001,John Peter,ECE,2,EC501,Digital Electronics,2026-11-15,09:30,12:30
+22EC002,Sneha Rao,ECE,2,EC501,Digital Electronics,2026-11-15,09:30,12:30
+22EC003,Manoj Kumar,ECE,2,EC501,Digital Electronics,2026-11-15,09:30,12:30
