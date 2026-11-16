@@ -25,3 +25,5 @@ python-dotenv
 # Testing
 pytest
 httpx
+
+python-jose[cryptography]
