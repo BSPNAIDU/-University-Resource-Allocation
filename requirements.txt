@@ -27,3 +27,4 @@ pytest
 httpx
 
 python-jose[cryptography]
+passlib[argon2]
